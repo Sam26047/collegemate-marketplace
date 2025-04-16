@@ -3,7 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { categories, Category } from '@/data/mockData';
 import { 
-  Book, Flask, Cpu, PenTool, Tool, FileText 
+  Book, Beaker, Cpu, PenTool, Wrench, FileText 
 } from 'lucide-react';
 
 interface CategoryItemProps {
@@ -16,13 +16,13 @@ const CategoryItem: React.FC<CategoryItemProps> = ({ category }) => {
       case 'book':
         return <Book className="h-6 w-6" />;
       case 'flask':
-        return <Flask className="h-6 w-6" />;
+        return <Beaker className="h-6 w-6" />;
       case 'cpu':
         return <Cpu className="h-6 w-6" />;
       case 'pen-tool':
         return <PenTool className="h-6 w-6" />;
       case 'tool':
-        return <Tool className="h-6 w-6" />;
+        return <Wrench className="h-6 w-6" />;
       case 'file-text':
         return <FileText className="h-6 w-6" />;
       default:

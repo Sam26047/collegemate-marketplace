@@ -4,7 +4,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Link } from 'react-router-dom';
 import { categories, products } from '@/data/mockData';
 import { 
-  Book, Flask, Cpu, PenTool, Tool, FileText, ChevronRight 
+  Book, Beaker, Cpu, PenTool, Wrench, FileText, ChevronRight 
 } from 'lucide-react';
 
 const Categories = () => {
@@ -14,13 +14,13 @@ const Categories = () => {
       case 'book':
         return <Book className="h-6 w-6" />;
       case 'flask':
-        return <Flask className="h-6 w-6" />;
+        return <Beaker className="h-6 w-6" />;
       case 'cpu':
         return <Cpu className="h-6 w-6" />;
       case 'pen-tool':
         return <PenTool className="h-6 w-6" />;
       case 'tool':
-        return <Tool className="h-6 w-6" />;
+        return <Wrench className="h-6 w-6" />;
       case 'file-text':
         return <FileText className="h-6 w-6" />;
       default:

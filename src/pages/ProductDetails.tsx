@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { MessageSquare, ArrowLeft, User, MapPin, Calendar } from 'lucide-react';
-import { products, users, Product, User } from '@/data/mockData';
+import { MessageSquare, ArrowLeft, User as UserIcon, MapPin, Calendar } from 'lucide-react';
+import { products, users, Product } from '@/data/mockData';
 import { formatDistanceToNow } from 'date-fns';
 import ProductGrid from '@/components/products/ProductGrid';
 
