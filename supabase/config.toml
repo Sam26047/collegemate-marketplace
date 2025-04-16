@@ -1,1 +1,5 @@
+
 project_id = "apkkklwenihriulmjtzy"
+
+[storage.products]
+public = true

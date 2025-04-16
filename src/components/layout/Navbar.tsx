@@ -1,131 +1,185 @@
 
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Menu, X, ShoppingBag, MessageSquare, User, PlusCircle } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { Search, MessageSquare, User, Plus, LogIn, Menu, X } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const Navbar = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const isMobile = useIsMobile();
-  
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
+  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const { user, profile, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
+
+  const getInitials = (name: string) => {
+    if (!name) return 'U';
+    return name.charAt(0).toUpperCase();
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white border-b border-gray-200 shadow-sm">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <div className="container mx-auto px-4 py-3">
+        <div className="flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center">
-            <ShoppingBag className="h-6 w-6 text-marketplace-primary mr-2" />
-            <span className="text-xl font-bold text-gray-900">CampusMarket</span>
+            <h1 className="text-xl font-bold text-marketplace-primary">Campus Marketplace</h1>
           </Link>
 
-          {/* Search bar - hide on mobile */}
-          {!isMobile && (
-            <div className="flex-1 max-w-md mx-4">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                <Input
-                  type="search"
-                  placeholder="Search for items..."
-                  className="pl-8 w-full bg-gray-50"
-                />
-              </div>
-            </div>
-          )}
+          {/* Search - hide on mobile */}
+          <div className="hidden md:flex relative flex-1 max-w-md mx-4">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Input
+              type="search"
+              placeholder="Search for items..."
+              className="pl-10"
+            />
+          </div>
 
-          {/* Desktop Navigation */}
-          {!isMobile && (
-            <nav className="flex items-center space-x-4">
-              <Link to="/categories" className="text-gray-600 hover:text-marketplace-primary">
-                Categories
-              </Link>
-              <Link to="/sell" className="text-gray-600 hover:text-marketplace-primary">
-                <Button variant="outline" className="flex items-center">
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Sell
+          {/* Nav Links - hide on mobile */}
+          <nav className="hidden md:flex items-center space-x-2">
+            {user ? (
+              <>
+                <Link to="/sell">
+                  <Button variant="ghost" size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Sell
+                  </Button>
+                </Link>
+                <Link to="/messages">
+                  <Button variant="ghost" size="sm">
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Messages
+                  </Button>
+                </Link>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="rounded-full h-8 w-8 p-0">
+                      <Avatar className="h-8 w-8">
+                        {profile?.avatar_url ? (
+                          <AvatarImage src={profile.avatar_url} alt={profile?.username || 'User'} />
+                        ) : (
+                          <AvatarFallback>{getInitials(profile?.username || user.email)}</AvatarFallback>
+                        )}
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>{profile?.username || user.email}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate('/profile')}>
+                      <User className="h-4 w-4 mr-2" />
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleSignOut}>
+                      <LogIn className="h-4 w-4 mr-2" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <Link to="/auth">
+                <Button>
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Sign In
                 </Button>
               </Link>
-              <Link to="/messages" className="text-gray-600 hover:text-marketplace-primary">
-                <MessageSquare className="h-6 w-6" />
-              </Link>
-              <Link to="/profile" className="text-gray-600 hover:text-marketplace-primary">
-                <User className="h-6 w-6" />
-              </Link>
-            </nav>
-          )}
+            )}
+          </nav>
 
-          {/* Mobile menu button */}
-          {isMobile && (
-            <button
-              className="text-gray-600 hover:text-marketplace-primary"
-              onClick={toggleMenu}
-            >
-              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          )}
+          {/* Mobile Menu Button */}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="md:hidden"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+          >
+            {isMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </Button>
         </div>
 
-        {/* Mobile search bar */}
-        {isMobile && (
-          <div className="py-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-              <Input
-                type="search"
-                placeholder="Search for items..."
-                className="pl-8 w-full bg-gray-50"
-              />
-            </div>
-          </div>
-        )}
+        {/* Mobile Search Bar */}
+        <div className="mt-3 mb-2 relative md:hidden">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <Input
+            type="search"
+            placeholder="Search for items..."
+            className="pl-10"
+          />
+        </div>
 
-        {/* Mobile Navigation */}
-        {isMobile && isMenuOpen && (
-          <nav className="py-3 border-t border-gray-200">
-            <ul className="space-y-2">
-              <li>
+        {/* Mobile Menu */}
+        {isMenuOpen && (
+          <div className="md:hidden mt-3 py-3 border-t border-gray-100">
+            <nav className="flex flex-col space-y-3">
+              {user ? (
+                <>
+                  <Link 
+                    to="/profile" 
+                    className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    Profile
+                  </Link>
+                  <Link 
+                    to="/sell" 
+                    className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Sell
+                  </Link>
+                  <Link 
+                    to="/messages" 
+                    className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Messages
+                  </Link>
+                  <button 
+                    onClick={() => {
+                      handleSignOut();
+                      setIsMenuOpen(false);
+                    }}
+                    className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100 text-left"
+                  >
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </button>
+                </>
+              ) : (
                 <Link 
-                  to="/categories"
-                  className="block px-2 py-2 text-gray-600 hover:bg-gray-50 rounded"
+                  to="/auth" 
+                  className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  Categories
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Sign In
                 </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/sell"
-                  className="block px-2 py-2 text-gray-600 hover:bg-gray-50 rounded"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Sell an Item
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/messages"
-                  className="block px-2 py-2 text-gray-600 hover:bg-gray-50 rounded"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Messages
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/profile"
-                  className="block px-2 py-2 text-gray-600 hover:bg-gray-50 rounded"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Profile
-                </Link>
-              </li>
-            </ul>
-          </nav>
+              )}
+            </nav>
+          </div>
         )}
       </div>
     </header>
