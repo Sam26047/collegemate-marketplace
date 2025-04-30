@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, MessageSquare, User, Plus, LogIn, Menu, X } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
 import { useJwtAuth } from '@/context/JwtAuthContext';
 import {
   DropdownMenu,
@@ -18,15 +17,12 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
-  const { user, profile, signOut } = useAuth();
-  const { user: jwtUser, logout: jwtLogout } = useJwtAuth();
+  const { user, logout } = useJwtAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
     if (user) {
-      await signOut();
-    } else if (jwtUser) {
-      jwtLogout();
+      logout();
     }
     navigate('/');
   };
@@ -36,10 +32,9 @@ const Navbar = () => {
     return name.charAt(0).toUpperCase();
   };
 
-  // Use either Supabase auth or JWT auth
-  const isAuthenticated = !!user || !!jwtUser;
-  const displayName = profile?.username || user?.email || jwtUser?.name || jwtUser?.email || 'User';
-  const avatarUrl = profile?.avatar_url;
+  // Use JWT auth
+  const isAuthenticated = !!user;
+  const displayName = user?.name || user?.email || 'User';
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -80,11 +75,7 @@ const Navbar = () => {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="rounded-full h-8 w-8 p-0">
                       <Avatar className="h-8 w-8">
-                        {avatarUrl ? (
-                          <AvatarImage src={avatarUrl} alt={displayName} />
-                        ) : (
-                          <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
-                        )}
+                        <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
@@ -104,20 +95,12 @@ const Navbar = () => {
                 </DropdownMenu>
               </>
             ) : (
-              <>
-                <Link to="/auth">
-                  <Button variant="outline" size="sm" className="mr-2">
-                    <LogIn className="h-4 w-4 mr-2" />
-                    Supabase Auth
-                  </Button>
-                </Link>
-                <Link to="/jwt-auth">
-                  <Button>
-                    <LogIn className="h-4 w-4 mr-2" />
-                    JWT Auth
-                  </Button>
-                </Link>
-              </>
+              <Link to="/auth">
+                <Button>
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Sign In
+                </Button>
+              </Link>
             )}
           </nav>
 
@@ -188,24 +171,14 @@ const Navbar = () => {
                   </button>
                 </>
               ) : (
-                <>
-                  <Link 
-                    to="/auth" 
-                    className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <LogIn className="h-4 w-4 mr-2" />
-                    Supabase Auth
-                  </Link>
-                  <Link 
-                    to="/jwt-auth" 
-                    className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <LogIn className="h-4 w-4 mr-2" />
-                    JWT Auth
-                  </Link>
-                </>
+                <Link 
+                  to="/auth" 
+                  className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Sign In
+                </Link>
               )}
             </nav>
           </div>
