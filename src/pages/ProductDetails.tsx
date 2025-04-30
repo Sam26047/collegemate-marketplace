@@ -13,14 +13,14 @@ import { MessageSquare, ArrowLeft, Heart, MapPin, Calendar, AlertTriangle } from
 import { formatDistanceToNow } from 'date-fns';
 import ProductGrid from '@/components/products/ProductGrid';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/context/AuthContext';
+import { useJwtAuth } from '@/context/JwtAuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const ProductDetails = () => {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user } = useJwtAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   

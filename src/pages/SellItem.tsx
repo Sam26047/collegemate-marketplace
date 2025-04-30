@@ -18,14 +18,14 @@ import {
 } from '@/components/ui/select';
 import { categories } from '@/data/mockData';
 import { UploadCloud } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { useJwtAuth } from '@/context/JwtAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 
 const SellItem = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user } = useJwtAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);

@@ -8,12 +8,12 @@ import CategoryList from '@/components/categories/CategoryList';
 import ProductGrid from '@/components/products/ProductGrid';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/context/AuthContext';
+import { useJwtAuth } from '@/context/JwtAuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user } = useJwtAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
   const [recentProducts, setRecentProducts] = useState<any[]>([]);
