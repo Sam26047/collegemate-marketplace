@@ -23,28 +23,17 @@ const JwtAuthContext = createContext<JwtAuthContextType | undefined>(undefined);
 
 export const JwtAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('jwtToken'));
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
     const initAuth = async () => {
-      const storedToken = localStorage.getItem('jwtToken');
-      if (storedToken) {
-        try {
-          // Verify token and get user data
-          const { user } = await api.getCurrentUser(storedToken);
-          setUser(user);
-          setToken(storedToken);
-        } catch (error) {
-          console.error('Error verifying authentication token:', error);
-          // Clear invalid token
-          localStorage.removeItem('jwtToken');
-          setToken(null);
-          setUser(null);
-        }
-      }
+      // Remove any previous login data
+      localStorage.removeItem('jwtToken');
+      setToken(null);
+      setUser(null);
       setIsLoading(false);
     };
 
