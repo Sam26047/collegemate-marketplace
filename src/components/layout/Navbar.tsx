@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, MessageSquare, User, Plus, LogIn, Menu, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useJwtAuth } from '@/context/JwtAuthContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,10 +19,15 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const { user, profile, signOut } = useAuth();
+  const { user: jwtUser, logout: jwtLogout } = useJwtAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
-    await signOut();
+    if (user) {
+      await signOut();
+    } else if (jwtUser) {
+      jwtLogout();
+    }
     navigate('/');
   };
 
@@ -29,6 +35,11 @@ const Navbar = () => {
     if (!name) return 'U';
     return name.charAt(0).toUpperCase();
   };
+
+  // Use either Supabase auth or JWT auth
+  const isAuthenticated = !!user || !!jwtUser;
+  const displayName = profile?.username || user?.email || jwtUser?.name || jwtUser?.email || 'User';
+  const avatarUrl = profile?.avatar_url;
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -51,7 +62,7 @@ const Navbar = () => {
 
           {/* Nav Links - hide on mobile */}
           <nav className="hidden md:flex items-center space-x-2">
-            {user ? (
+            {isAuthenticated ? (
               <>
                 <Link to="/sell">
                   <Button variant="ghost" size="sm">
@@ -69,16 +80,16 @@ const Navbar = () => {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="rounded-full h-8 w-8 p-0">
                       <Avatar className="h-8 w-8">
-                        {profile?.avatar_url ? (
-                          <AvatarImage src={profile.avatar_url} alt={profile?.username || 'User'} />
+                        {avatarUrl ? (
+                          <AvatarImage src={avatarUrl} alt={displayName} />
                         ) : (
-                          <AvatarFallback>{getInitials(profile?.username || user.email)}</AvatarFallback>
+                          <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
                         )}
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>{profile?.username || user.email}</DropdownMenuLabel>
+                    <DropdownMenuLabel>{displayName}</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => navigate('/profile')}>
                       <User className="h-4 w-4 mr-2" />
@@ -93,12 +104,20 @@ const Navbar = () => {
                 </DropdownMenu>
               </>
             ) : (
-              <Link to="/auth">
-                <Button>
-                  <LogIn className="h-4 w-4 mr-2" />
-                  Sign In
-                </Button>
-              </Link>
+              <>
+                <Link to="/auth">
+                  <Button variant="outline" size="sm" className="mr-2">
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Supabase Auth
+                  </Button>
+                </Link>
+                <Link to="/jwt-auth">
+                  <Button>
+                    <LogIn className="h-4 w-4 mr-2" />
+                    JWT Auth
+                  </Button>
+                </Link>
+              </>
             )}
           </nav>
 
@@ -131,7 +150,7 @@ const Navbar = () => {
         {isMenuOpen && (
           <div className="md:hidden mt-3 py-3 border-t border-gray-100">
             <nav className="flex flex-col space-y-3">
-              {user ? (
+              {isAuthenticated ? (
                 <>
                   <Link 
                     to="/profile" 
@@ -169,14 +188,24 @@ const Navbar = () => {
                   </button>
                 </>
               ) : (
-                <Link 
-                  to="/auth" 
-                  className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <LogIn className="h-4 w-4 mr-2" />
-                  Sign In
-                </Link>
+                <>
+                  <Link 
+                    to="/auth" 
+                    className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Supabase Auth
+                  </Link>
+                  <Link 
+                    to="/jwt-auth" 
+                    className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <LogIn className="h-4 w-4 mr-2" />
+                    JWT Auth
+                  </Link>
+                </>
               )}
             </nav>
           </div>

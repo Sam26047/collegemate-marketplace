@@ -1,700 +1,482 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { format } from 'date-fns';
-import { Link } from 'react-router-dom';
+import { MessageSquare, Send, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { 
-  Sheet, 
-  SheetContent, 
-  SheetHeader, 
-  SheetTitle,
-  SheetTrigger 
-} from '@/components/ui/sheet';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Send, MessageSquare } from 'lucide-react';
-
-interface Message {
-  id: string;
-  sender_id: string;
-  receiver_id: string;
-  content: string;
-  created_at: string;
-  read: boolean;
-  product_id?: string;
-  sender?: {
-    username: string;
-    avatar_url: string;
-  };
-  product?: {
-    title: string;
-    image_url: string;
-  };
-}
-
-interface Conversation {
-  user_id: string;
-  username: string;
-  avatar_url: string | null;
-  last_message: string;
-  last_message_time: string;
-  unread_count: number;
-}
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
+import { formatDistanceToNow } from 'date-fns';
+import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const Messages = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
-  // States
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversation, setActiveConversation] = useState<string | null>(null);
-  const [activeUsername, setActiveUsername] = useState<string>('');
-  const [activeAvatar, setActiveAvatar] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [activeConversation, setActiveConversation] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSending, setIsSending] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
-  const [activeProducts, setActiveProducts] = useState<any[]>([]);
-  
-  // Check auth status
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [userProducts, setUserProducts] = useState<any[]>([]);
+
   useEffect(() => {
     if (!user) {
       toast({
-        title: 'Authentication required',
-        description: 'Please sign in to view messages',
-        variant: 'destructive',
+        title: "Authentication required",
+        description: "Please sign in to view messages",
+        variant: "destructive"
       });
       navigate('/auth');
-    } else {
-      fetchConversations();
+      return;
     }
-  }, [user, navigate, toast]);
-  
-  // Subscribe to real-time updates for new messages
-  useEffect(() => {
-    if (!user) return;
-    
-    const channel = supabase
-      .channel('messages-channel')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `receiver_id=eq.${user.id}`,
-        },
-        (payload) => {
-          // Handle new message
-          const newMsg = payload.new as Message;
-          
-          // If the message belongs to the active conversation, add it to messages
-          if (activeConversation === newMsg.sender_id) {
-            setMessages(prev => [...prev, newMsg]);
-            
-            // Mark it as read
-            markAsRead(newMsg.id);
-          }
-          
-          // Update conversations list
-          fetchConversations();
-        }
-      )
-      .subscribe();
-    
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, activeConversation]);
-  
-  // Fetch all conversations for the current user
-  const fetchConversations = async () => {
-    if (!user) return;
-    
-    try {
-      setIsLoading(true);
-      
-      // Get sent messages (grouped by receiver)
-      const { data: sentData, error: sentError } = await supabase
-        .from('messages')
-        .select(`
-          receiver_id,
-          content,
-          created_at,
-          profiles!messages_receiver_id_fkey (
-            username,
-            avatar_url
-          )
-        `)
-        .eq('sender_id', user.id)
-        .order('created_at', { ascending: false });
-      
-      if (sentError) throw sentError;
-      
-      // Get received messages (grouped by sender)
-      const { data: receivedData, error: receivedError } = await supabase
-        .from('messages')
-        .select(`
-          sender_id,
-          content,
-          created_at,
-          read,
-          profiles!messages_sender_id_fkey (
-            username,
-            avatar_url
-          )
-        `)
-        .eq('receiver_id', user.id)
-        .order('created_at', { ascending: false });
-      
-      if (receivedError) throw receivedError;
-      
-      // Merge and format conversations
-      const conversationMap = new Map<string, Conversation>();
-      
-      // Process sent messages
-      sentData.forEach((message) => {
-        const userId = message.receiver_id;
-        const username = message.profiles?.username || 'Unknown User';
-        const avatarUrl = message.profiles?.avatar_url;
+
+    // Fetch user's conversations
+    const fetchConversations = async () => {
+      try {
+        setIsLoading(true);
         
-        if (!conversationMap.has(userId)) {
-          conversationMap.set(userId, {
-            user_id: userId,
-            username,
-            avatar_url: avatarUrl,
-            last_message: message.content,
-            last_message_time: message.created_at,
-            unread_count: 0,
-          });
-        }
-      });
-      
-      // Process received messages
-      receivedData.forEach((message) => {
-        const userId = message.sender_id;
-        const username = message.profiles?.username || 'Unknown User';
-        const avatarUrl = message.profiles?.avatar_url;
-        
-        if (!conversationMap.has(userId)) {
-          conversationMap.set(userId, {
-            user_id: userId,
-            username,
-            avatar_url: avatarUrl,
-            last_message: message.content,
-            last_message_time: message.created_at,
-            unread_count: message.read ? 0 : 1,
-          });
-        } else if (new Date(message.created_at) > new Date(conversationMap.get(userId)!.last_message_time)) {
-          // Update if this is a more recent message
-          const conversation = conversationMap.get(userId)!;
-          conversation.last_message = message.content;
-          conversation.last_message_time = message.created_at;
-          if (!message.read) {
-            conversation.unread_count += 1;
+        // Get unique conversations by combining sent and received messages
+        const { data: sentMessages, error: sentError } = await supabase
+          .from('messages')
+          .select(`
+            id,
+            receiver_id,
+            product_id,
+            created_at
+          `)
+          .eq('sender_id', user.id)
+          .order('created_at', { ascending: false });
+
+        const { data: receivedMessages, error: receivedError } = await supabase
+          .from('messages')
+          .select(`
+            id,
+            sender_id,
+            product_id,
+            created_at
+          `)
+          .eq('receiver_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (sentError || receivedError) throw sentError || receivedError;
+
+        // Process conversations
+        const conversationMap = new Map();
+
+        // Process sent messages
+        if (sentMessages) {
+          for (const msg of sentMessages) {
+            const otherUserId = msg.receiver_id;
+            if (!conversationMap.has(otherUserId)) {
+              // Fetch user profile
+              const { data: userData } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', otherUserId)
+                .single();
+
+              // Fetch product if available
+              let product = null;
+              if (msg.product_id) {
+                const { data: productData } = await supabase
+                  .from('products')
+                  .select('*')
+                  .eq('id', msg.product_id)
+                  .single();
+                product = productData;
+              }
+
+              conversationMap.set(otherUserId, {
+                id: otherUserId,
+                user: userData,
+                lastMessageTime: msg.created_at,
+                product: product
+              });
+            }
           }
-        } else if (!message.read) {
-          // Add to unread count
-          conversationMap.get(userId)!.unread_count += 1;
         }
-      });
-      
-      // Convert map to array and sort by most recent message
-      const sortedConversations = Array.from(conversationMap.values())
-        .sort((a, b) => {
-          return new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime();
+
+        // Process received messages
+        if (receivedMessages) {
+          for (const msg of receivedMessages) {
+            const otherUserId = msg.sender_id;
+            if (!conversationMap.has(otherUserId)) {
+              // Fetch user profile
+              const { data: userData } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', otherUserId)
+                .single();
+
+              // Fetch product if available
+              let product = null;
+              if (msg.product_id) {
+                const { data: productData } = await supabase
+                  .from('products')
+                  .select('*')
+                  .eq('id', msg.product_id)
+                  .single();
+                product = productData;
+              }
+
+              conversationMap.set(otherUserId, {
+                id: otherUserId,
+                user: userData,
+                lastMessageTime: msg.created_at,
+                product: product
+              });
+            } else if (new Date(msg.created_at) > new Date(conversationMap.get(otherUserId).lastMessageTime)) {
+              conversationMap.get(otherUserId).lastMessageTime = msg.created_at;
+            }
+          }
+        }
+
+        // Convert map to array and sort by last message time
+        const conversationArray = Array.from(conversationMap.values()).sort((a, b) => {
+          return new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime();
         });
-      
-      setConversations(sortedConversations);
-    } catch (error: any) {
-      console.error('Error fetching conversations:', error.message);
-      toast({
-        title: 'Failed to load conversations',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // Load messages for a specific conversation
-  const loadConversation = async (userId: string, username: string, avatar: string | null) => {
-    if (!user) return;
-    
+
+        setConversations(conversationArray);
+      } catch (error) {
+        console.error('Error fetching conversations:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load conversations",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Fetch user's products for sending messages
+    const fetchUserProducts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('seller_id', user.id)
+          .eq('status', 'active');
+
+        if (error) throw error;
+        setUserProducts(data || []);
+      } catch (error) {
+        console.error('Error fetching user products:', error);
+      }
+    };
+
+    fetchConversations();
+    fetchUserProducts();
+
+    // Set up realtime subscription for new messages
+    const messagesSubscription = supabase
+      .channel('messages_channel')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const newMsg = payload.new;
+        // Only update if the message is part of the current user's conversations
+        if (newMsg.sender_id === user.id || newMsg.receiver_id === user.id) {
+          fetchConversations();
+          
+          // If this message belongs to the active conversation, update the messages
+          if (activeConversation && 
+              ((newMsg.sender_id === activeConversation.id && newMsg.receiver_id === user.id) || 
+               (newMsg.receiver_id === activeConversation.id && newMsg.sender_id === user.id))) {
+            fetchMessages(activeConversation.id);
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.channel('messages_channel').unsubscribe();
+    };
+  }, [user, navigate, toast]);
+
+  // Fetch messages for a conversation
+  const fetchMessages = async (otherUserId: string) => {
     try {
-      setIsLoading(true);
-      setActiveConversation(userId);
-      setActiveUsername(username);
-      setActiveAvatar(avatar);
-      
-      // Fetch all messages between current user and selected user
       const { data, error } = await supabase
         .from('messages')
         .select(`
           *,
-          products (
-            id,
-            title,
-            image_url
-          )
+          product:product_id(*)
         `)
-        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`)
+        .or(`and(sender_id.eq.${user?.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${user?.id})`)
         .order('created_at', { ascending: true });
-      
+
       if (error) throw error;
-      
       setMessages(data || []);
       
-      // Mark unread messages as read
-      const unreadMessages = data?.filter(
-        (msg) => msg.read === false && msg.receiver_id === user.id
-      ) || [];
-      
-      if (unreadMessages.length > 0) {
-        await Promise.all(
-          unreadMessages.map((msg) => markAsRead(msg.id))
-        );
+      // Mark received messages as read
+      if (data && data.length > 0) {
+        const unreadMessageIds = data
+          .filter(msg => msg.receiver_id === user?.id && !msg.read)
+          .map(msg => msg.id);
         
-        // Update conversation list to reflect read messages
-        fetchConversations();
+        if (unreadMessageIds.length > 0) {
+          await supabase
+            .from('messages')
+            .update({ read: true })
+            .in('id', unreadMessageIds);
+        }
       }
-      
-      // Load available products to discuss
-      fetchUserProducts();
-    } catch (error: any) {
-      console.error('Error loading conversation:', error.message);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
       toast({
-        title: 'Failed to load conversation',
-        description: error.message,
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to load messages",
+        variant: "destructive"
       });
-    } finally {
-      setIsLoading(false);
     }
   };
-  
-  // Mark a message as read
-  const markAsRead = async (messageId: string) => {
-    try {
-      await supabase
-        .from('messages')
-        .update({ read: true })
-        .eq('id', messageId);
-    } catch (error: any) {
-      console.error('Error marking message as read:', error.message);
-    }
+
+  const handleSelectConversation = (conversation: any) => {
+    setActiveConversation(conversation);
+    fetchMessages(conversation.id);
   };
-  
+
   // Send a new message
-  const sendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!user || !activeConversation || !newMessage.trim()) return;
-    
+    if (!newMessage.trim() || !activeConversation) return;
+
     try {
-      setIsSending(true);
-      
       const messageData = {
-        sender_id: user.id,
-        receiver_id: activeConversation,
+        sender_id: user?.id,
+        receiver_id: activeConversation.id,
         content: newMessage.trim(),
-        product_id: selectedProduct?.id || null,
+        product_id: selectedProduct?.id || activeConversation.product?.id || null
       };
-      
-      const { data, error } = await supabase
-        .from('messages')
-        .insert(messageData)
-        .select()
-        .single();
-      
+
+      const { error } = await supabase.from('messages').insert(messageData);
       if (error) throw error;
-      
-      // Update local messages list
-      setMessages((prev) => [...prev, data]);
+
       setNewMessage('');
       setSelectedProduct(null);
       
-      // Update conversations list
-      fetchConversations();
-    } catch (error: any) {
-      console.error('Error sending message:', error.message);
+      // Fetch updated messages
+      fetchMessages(activeConversation.id);
+    } catch (error) {
+      console.error('Error sending message:', error);
       toast({
-        title: 'Failed to send message',
-        description: error.message,
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to send message",
+        variant: "destructive"
       });
-    } finally {
-      setIsSending(false);
     }
   };
-  
-  // Fetch user's products to share in conversation
-  const fetchUserProducts = async () => {
-    if (!user) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('seller_id', user.id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      
-      setActiveProducts(data || []);
-    } catch (error: any) {
-      console.error('Error fetching products:', error.message);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
+  }, [messages]);
+
+  const getInitials = (name: string) => {
+    if (!name) return 'U';
+    return name.charAt(0).toUpperCase();
   };
-  
-  // Format timestamp for display
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    
-    // Today
-    if (date.toDateString() === now.toDateString()) {
-      return format(date, 'h:mm a');
-    }
-    
-    // Within the last week
-    const oneWeekAgo = new Date(now);
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    if (date > oneWeekAgo) {
-      return format(date, 'E, h:mm a'); // Day of week
-    }
-    
-    // Older than a week
-    return format(date, 'MMM d, yyyy');
-  };
-  
-  // Render avatar with fallback
-  const renderAvatar = (username: string, avatarUrl: string | null) => {
-    const initials = username?.charAt(0).toUpperCase() || '?';
-    return (
-      <Avatar>
-        <AvatarImage src={avatarUrl || undefined} alt={username} />
-        <AvatarFallback>{initials}</AvatarFallback>
-      </Avatar>
-    );
-  };
-  
-  // Determine if the current user is the sender of a message
-  const isCurrentUser = (senderId: string) => {
-    return user?.id === senderId;
-  };
-  
+
   return (
     <MainLayout>
-      <div className="container max-w-6xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Messages</h1>
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-6">Messages</h1>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Conversations list */}
-          <div className="lg:col-span-1">
-            <Card className="h-[calc(100vh-12rem)] flex flex-col">
-              <div className="p-4 border-b">
-                <h2 className="text-xl font-semibold flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Conversations
-                </h2>
-              </div>
-              
-              <div className="flex-grow overflow-y-auto p-2">
-                {isLoading && conversations.length === 0 ? (
-                  <div className="flex justify-center items-center h-full">
-                    <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                  </div>
-                ) : conversations.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                    <MessageSquare className="h-12 w-12 text-gray-400 mb-2" />
-                    <p className="text-gray-500">You don't have any conversations yet.</p>
-                    <p className="text-gray-500 text-sm mt-1">Browse products and message a seller to get started.</p>
-                    <Button asChild className="mt-4">
-                      <Link to="/">Browse Products</Link>
-                    </Button>
-                  </div>
-                ) : (
-                  <ul className="space-y-2">
-                    {conversations.map((convo) => (
-                      <li key={convo.user_id}>
-                        <button
-                          className={`w-full text-left p-3 rounded-lg hover:bg-gray-100 transition-colors ${
-                            activeConversation === convo.user_id ? "bg-gray-100" : ""
-                          }`}
-                          onClick={() => loadConversation(convo.user_id, convo.username, convo.avatar_url)}
-                        >
-                          <div className="flex items-center gap-3">
-                            {renderAvatar(convo.username, convo.avatar_url)}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex justify-between items-center">
-                                <span className="font-medium truncate">{convo.username}</span>
-                                <span className="text-xs text-gray-500">
-                                  {formatTimestamp(convo.last_message_time)}
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-600 truncate">{convo.last_message}</p>
-                            </div>
-                            {convo.unread_count > 0 && (
-                              <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold text-white bg-blue-600 rounded-full">
-                                {convo.unread_count}
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </Card>
+        {!user ? (
+          <div className="text-center py-10">
+            <MessageSquare className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Sign in to view your messages</h2>
+            <Button onClick={() => navigate('/auth')}>Sign In</Button>
           </div>
-          
-          {/* Chat area */}
-          <div className="lg:col-span-2">
-            <Card className="h-[calc(100vh-12rem)] flex flex-col">
-              {!activeConversation ? (
-                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-                  <MessageSquare className="h-16 w-16 text-gray-300 mb-4" />
-                  <h3 className="text-xl font-medium text-gray-700 mb-2">Your Messages</h3>
-                  <p className="text-gray-500 max-w-md">
-                    Select a conversation from the list to view messages or browse products to start
-                    a new conversation with a seller.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {/* Chat header */}
-                  <div className="p-4 border-b flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {renderAvatar(activeUsername, activeAvatar)}
-                      <div>
-                        <h2 className="font-semibold">{activeUsername}</h2>
-                      </div>
-                    </div>
-                    
-                    <Sheet>
-                      <SheetTrigger asChild>
-                        <Button variant="outline" size="sm">View Profile</Button>
-                      </SheetTrigger>
-                      <SheetContent>
-                        <SheetHeader>
-                          <SheetTitle>User Profile</SheetTitle>
-                        </SheetHeader>
-                        <div className="py-6">
-                          <div className="flex items-center gap-4 mb-6">
-                            {renderAvatar(activeUsername, activeAvatar)}
-                            <div>
-                              <h3 className="text-lg font-medium">{activeUsername}</h3>
-                            </div>
-                          </div>
-                          
-                          <Tabs defaultValue="listings">
-                            <TabsList className="grid w-full grid-cols-2">
-                              <TabsTrigger value="listings">Listings</TabsTrigger>
-                              <TabsTrigger value="reviews">Reviews</TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="listings" className="mt-4">
-                              <p className="text-sm text-gray-500 text-center py-8">
-                                This feature is coming soon
-                              </p>
-                            </TabsContent>
-                            <TabsContent value="reviews" className="mt-4">
-                              <p className="text-sm text-gray-500 text-center py-8">
-                                This feature is coming soon
-                              </p>
-                            </TabsContent>
-                          </Tabs>
-                        </div>
-                      </SheetContent>
-                    </Sheet>
+        ) : (
+          <Card className="shadow-md">
+            <CardContent className="p-0">
+              <div className="grid grid-cols-1 md:grid-cols-3 h-[70vh]">
+                {/* Conversations List */}
+                <div className="border-r border-gray-200 overflow-hidden">
+                  <div className="p-4 border-b border-gray-200">
+                    <h2 className="font-semibold">Conversations</h2>
                   </div>
-                  
-                  {/* Messages */}
-                  <div className="flex-grow overflow-y-auto p-4 space-y-4">
+                  <ScrollArea className="h-[calc(70vh-57px)]">
                     {isLoading ? (
-                      <div className="flex justify-center items-center h-full">
-                        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                      <div className="flex items-center justify-center h-full">
+                        <p>Loading conversations...</p>
                       </div>
-                    ) : messages.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-full text-center">
-                        <p className="text-gray-500">No messages yet. Say hello!</p>
+                    ) : conversations.length === 0 ? (
+                      <div className="p-6 text-center text-gray-500">
+                        <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                        <p>No conversations yet</p>
+                        <p className="text-sm mt-2">When you message other users about their listings, they'll appear here.</p>
                       </div>
                     ) : (
-                      messages.map((message) => (
-                        <div
-                          key={message.id}
-                          className={`flex ${
-                            isCurrentUser(message.sender_id) ? "justify-end" : "justify-start"
-                          }`}
-                        >
-                          <div
-                            className={`max-w-[80%] ${
-                              isCurrentUser(message.sender_id)
-                                ? "bg-blue-600 text-white rounded-tl-lg rounded-bl-lg rounded-tr-lg"
-                                : "bg-gray-100 text-gray-800 rounded-tr-lg rounded-br-lg rounded-tl-lg"
-                            } p-3 shadow-sm`}
+                      <div>
+                        {conversations.map((conversation) => (
+                          <div 
+                            key={conversation.id}
+                            className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 ${activeConversation?.id === conversation.id ? 'bg-gray-100' : ''}`}
+                            onClick={() => handleSelectConversation(conversation)}
                           >
-                            {message.product_id && message.product && (
-                              <div className="border-b pb-2 mb-2">
-                                <div className="flex items-center gap-2">
-                                  {message.product.image_url && (
-                                    <img
-                                      src={message.product.image_url}
-                                      alt={message.product.title}
-                                      className="w-10 h-10 object-cover rounded"
-                                    />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className={`text-xs font-medium ${
-                                      isCurrentUser(message.sender_id) ? "text-blue-100" : "text-gray-600"
-                                    }`}>
-                                      Product:
-                                    </p>
-                                    <p className="text-sm truncate">
-                                      {message.product.title}
-                                    </p>
-                                  </div>
-                                </div>
+                            <div className="flex items-center">
+                              <Avatar className="h-10 w-10 mr-3">
+                                {conversation.user?.avatar_url ? (
+                                  <AvatarImage src={conversation.user.avatar_url} alt={conversation.user?.username || 'User'} />
+                                ) : (
+                                  <AvatarFallback>{getInitials(conversation.user?.username || 'User')}</AvatarFallback>
+                                )}
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{conversation.user?.username || 'Unknown User'}</p>
+                                {conversation.product && (
+                                  <p className="text-xs text-gray-500 truncate">
+                                    Re: {conversation.product.title}
+                                  </p>
+                                )}
                               </div>
-                            )}
-                            <p>{message.content}</p>
-                            <p
-                              className={`text-xs mt-1 text-right ${
-                                isCurrentUser(message.sender_id) ? "text-blue-200" : "text-gray-500"
-                              }`}
-                            >
-                              {formatTimestamp(message.created_at)}
-                            </p>
+                              <div className="text-xs text-gray-500">
+                                {formatDistanceToNow(new Date(conversation.lastMessageTime), { addSuffix: true })}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        ))}
+                      </div>
                     )}
-                  </div>
-                  
-                  {/* Share product dropdown */}
-                  {selectedProduct && (
-                    <div className="p-3 bg-gray-50 border-t">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <div className="w-8 h-8 bg-gray-200 rounded overflow-hidden">
-                            {selectedProduct.image_url ? (
-                              <img 
-                                src={selectedProduct.image_url} 
-                                alt={selectedProduct.title} 
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
-                                No img
-                              </div>
-                            )}
-                          </div>
-                          <span className="text-sm font-medium truncate max-w-[200px]">
-                            {selectedProduct.title}
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setSelectedProduct(null)}
-                        >
-                          ✕
-                        </Button>
+                  </ScrollArea>
+                </div>
+                
+                {/* Messages Area */}
+                <div className="col-span-2 flex flex-col h-full">
+                  {!activeConversation ? (
+                    <div className="flex items-center justify-center h-full text-center p-6">
+                      <div>
+                        <MessageSquare className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold">Select a conversation</h3>
+                        <p className="text-gray-500 mt-2">Choose a conversation to view messages</p>
                       </div>
                     </div>
-                  )}
-                  
-                  {/* Message input */}
-                  <div className="p-3 border-t">
-                    <form onSubmit={sendMessage} className="flex gap-2">
-                      <div className="relative flex-grow">
-                        {activeProducts.length > 0 && (
-                          <div className="absolute bottom-full mb-2 right-0">
-                            <Sheet>
-                              <SheetTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                  Share a product
-                                </Button>
-                              </SheetTrigger>
-                              <SheetContent side="bottom" className="h-80">
-                                <SheetHeader>
-                                  <SheetTitle>Share a product</SheetTitle>
-                                </SheetHeader>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 py-4 overflow-y-auto">
-                                  {activeProducts.map((product) => (
-                                    <Card
-                                      key={product.id}
-                                      className={`cursor-pointer transition-all ${
-                                        selectedProduct?.id === product.id
-                                          ? "ring-2 ring-blue-500"
-                                          : "hover:shadow-md"
-                                      }`}
-                                      onClick={() => {
-                                        setSelectedProduct(product);
-                                      }}
-                                    >
-                                      <div className="h-24 bg-gray-100">
-                                        {product.image_url ? (
-                                          <img
-                                            src={product.image_url}
-                                            alt={product.title}
-                                            className="w-full h-full object-cover"
-                                          />
-                                        ) : (
-                                          <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                            No image
-                                          </div>
-                                        )}
-                                      </div>
-                                      <CardContent className="p-3">
-                                        <p className="font-medium text-sm truncate">
-                                          {product.title}
-                                        </p>
-                                        <p className="text-sm text-green-600">
-                                          ${parseFloat(product.price).toFixed(2)}
-                                        </p>
-                                      </CardContent>
-                                    </Card>
-                                  ))}
+                  ) : (
+                    <>
+                      {/* Header */}
+                      <div className="p-4 border-b border-gray-200 flex items-center">
+                        <Avatar className="h-10 w-10 mr-3">
+                          {activeConversation.user?.avatar_url ? (
+                            <AvatarImage src={activeConversation.user.avatar_url} alt={activeConversation.user?.username || 'User'} />
+                          ) : (
+                            <AvatarFallback>{getInitials(activeConversation.user?.username || 'User')}</AvatarFallback>
+                          )}
+                        </Avatar>
+                        <div>
+                          <h3 className="font-semibold">
+                            {activeConversation.user?.username || 'Unknown User'}
+                          </h3>
+                          {activeConversation.product && (
+                            <p className="text-xs text-gray-500">
+                              Discussing: {activeConversation.product.title}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Messages */}
+                      <ScrollArea className="flex-1 p-4">
+                        {messages.length === 0 ? (
+                          <div className="h-full flex items-center justify-center">
+                            <p className="text-gray-500">No messages yet</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {messages.map((message) => (
+                              <div 
+                                key={message.id} 
+                                className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
+                              >
+                                <div 
+                                  className={`max-w-[70%] rounded-lg p-3 ${
+                                    message.sender_id === user?.id 
+                                      ? 'bg-blue-500 text-white' 
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}
+                                >
+                                  {message.product && message.product.id && (
+                                    <div className="text-xs mb-2 p-2 bg-white bg-opacity-20 rounded">
+                                      Re: {message.product.title}
+                                    </div>
+                                  )}
+                                  <p>{message.content}</p>
+                                  <p className={`text-xs mt-1 ${
+                                    message.sender_id === user?.id 
+                                      ? 'text-blue-100' 
+                                      : 'text-gray-500'
+                                  }`}>
+                                    {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
+                                  </p>
                                 </div>
-                              </SheetContent>
-                            </Sheet>
+                              </div>
+                            ))}
+                            <div ref={messagesEndRef} />
                           </div>
                         )}
-                        <Textarea
-                          value={newMessage}
-                          onChange={(e) => setNewMessage(e.target.value)}
-                          placeholder="Type your message..."
-                          className="resize-none min-h-[60px]"
-                        />
-                      </div>
-                      <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()}>
-                        {isSending ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                          <Send className="h-5 w-5" />
-                        )}
-                      </Button>
-                    </form>
-                  </div>
-                </>
-              )}
-            </Card>
-          </div>
-        </div>
+                      </ScrollArea>
+                      
+                      {/* Product selection for message context */}
+                      {userProducts.length > 0 && (
+                        <div className="p-2 border-t border-gray-200">
+                          <div className="flex items-center">
+                            <span className="text-xs text-gray-500 mr-2">Product context:</span>
+                            <select 
+                              className="text-xs border-gray-300 rounded-md"
+                              value={selectedProduct?.id || ''}
+                              onChange={(e) => {
+                                const product = userProducts.find(p => p.id === e.target.value);
+                                setSelectedProduct(product || null);
+                              }}
+                            >
+                              <option value="">None</option>
+                              {userProducts.map(product => (
+                                <option key={product.id} value={product.id}>
+                                  {product.title}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Message Input */}
+                      <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200">
+                        <div className="flex items-end space-x-2">
+                          <div className="flex-1">
+                            <Textarea
+                              value={newMessage}
+                              onChange={(e) => setNewMessage(e.target.value)}
+                              placeholder="Type your message..."
+                              className="resize-none"
+                              rows={2}
+                              required
+                            />
+                          </div>
+                          <Button type="submit" size="icon">
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </form>
+                    </>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </MainLayout>
   );
