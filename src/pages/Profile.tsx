@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import ProductGrid from '@/components/products/ProductGrid';
-import { User, Settings, MessageSquare, Package, Heart, AlertCircle } from 'lucide-react';
+import { Package, Heart } from 'lucide-react';
 import { useJwtAuth } from '@/context/JwtAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -66,16 +66,28 @@ const Profile = () => {
       if (productsError) throw productsError;
       setUserProducts(productsData || []);
       
-      // Load saved products (favorites)
-      const { data: savedData, error: savedError } = await supabase
-        .from('saved_products')
-        .select('products(*)')
+      // Load saved products (favorites) - Fixed to use the favorites table instead of saved_products
+      const { data: favoritesData, error: favoritesError } = await supabase
+        .from('favorites')
+        .select('product_id')
         .eq('user_id', user.id);
       
-      if (savedError) throw savedError;
+      if (favoritesError) throw favoritesError;
       
-      const savedItems = savedData?.map(item => item.products) || [];
-      setSavedProducts(savedItems);
+      // If there are favorites, fetch the actual products
+      if (favoritesData && favoritesData.length > 0) {
+        const productIds = favoritesData.map(favorite => favorite.product_id);
+        
+        const { data: favoriteProducts, error: favoriteProductsError } = await supabase
+          .from('products')
+          .select('*')
+          .in('id', productIds);
+          
+        if (favoriteProductsError) throw favoriteProductsError;
+        setSavedProducts(favoriteProducts || []);
+      } else {
+        setSavedProducts([]);
+      }
     } catch (error) {
       console.error('Error loading user data:', error);
     } finally {

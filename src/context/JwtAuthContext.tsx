@@ -30,10 +30,28 @@ export const JwtAuthProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   useEffect(() => {
     const initAuth = async () => {
-      // Remove any previous login data
-      localStorage.removeItem('jwtToken');
-      setToken(null);
-      setUser(null);
+      // Check if there's a token in localStorage
+      const storedToken = localStorage.getItem('jwtToken');
+      
+      if (storedToken) {
+        try {
+          // Verify the token and get user data
+          const userData = await api.getCurrentUser(storedToken);
+          setToken(storedToken);
+          setUser(userData.user);
+        } catch (error) {
+          // If token verification fails, clear storage
+          console.error('Token verification failed:', error);
+          localStorage.removeItem('jwtToken');
+          setToken(null);
+          setUser(null);
+        }
+      } else {
+        // No token found
+        setToken(null);
+        setUser(null);
+      }
+      
       setIsLoading(false);
     };
 
