@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
@@ -129,26 +128,34 @@ const SellItem = () => {
       
       // Upload images
       const imageUrls = await uploadImages();
+      console.log('Uploaded image URLs:', imageUrls);
       
-      // Use our new API to create the product
-      createProduct({
+      // Use our API to create the product
+      await createProduct({
         title,
         description,
         price: parseFloat(price),
         condition: condition as 'new' | 'like-new' | 'good' | 'fair' | 'poor',
         category,
         location,
-        image_url: imageUrls[0] || null, // First image as primary
-        image_urls: imageUrls
+        image_url: imageUrls.length > 0 ? imageUrls[0] : undefined,
+        image_urls: imageUrls.length > 0 ? imageUrls : undefined
+      });
+      
+      toast({
+        title: 'Success',
+        description: 'Your listing has been created',
       });
       
       // Navigate to home page after success
       navigate('/');
       
     } catch (error: any) {
+      console.error('Error creating listing:', error);
+      
       toast({
         title: 'Error creating listing',
-        description: error.message,
+        description: error.message || 'An unexpected error occurred',
         variant: 'destructive',
       });
     } finally {

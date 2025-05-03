@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 const API_URL = "https://apkkklwenihriulmjtzy.supabase.co/functions/v1/auth";
@@ -108,17 +107,34 @@ export const api = {
   products: {
     // Create a new product listing
     create: async (productData: ProductCreate) => {
+      // Get the current user session
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      if (!sessionData.session) {
+        throw new Error('User must be logged in to create a product');
+      }
+      
+      const userId = sessionData.session.user.id;
+      
+      console.log('Creating product with user ID:', userId);
+      console.log('Product data:', productData);
+      
       const { data, error } = await supabase
         .from('products')
         .insert({
           ...productData,
-          seller_id: (await supabase.auth.getUser()).data.user?.id,
+          seller_id: userId,
           status: 'active'
         })
         .select()
         .single();
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        console.error('Error creating product:', error);
+        throw new Error(error.message);
+      }
+      
+      console.log('Product created successfully:', data);
       return data;
     },
 
