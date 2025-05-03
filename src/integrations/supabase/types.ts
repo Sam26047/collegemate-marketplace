@@ -117,11 +117,12 @@ export type Database = {
       products: {
         Row: {
           category: string
-          condition: string
+          condition: Database["public"]["Enums"]["product_condition"]
           created_at: string
           description: string | null
           id: string
           image_url: string | null
+          image_urls: string[] | null
           location: string | null
           price: number
           seller_id: string
@@ -131,11 +132,12 @@ export type Database = {
         }
         Insert: {
           category: string
-          condition: string
+          condition: Database["public"]["Enums"]["product_condition"]
           created_at?: string
           description?: string | null
           id?: string
           image_url?: string | null
+          image_urls?: string[] | null
           location?: string | null
           price: number
           seller_id: string
@@ -145,11 +147,12 @@ export type Database = {
         }
         Update: {
           category?: string
-          condition?: string
+          condition?: Database["public"]["Enums"]["product_condition"]
           created_at?: string
           description?: string | null
           id?: string
           image_url?: string | null
+          image_urls?: string[] | null
           location?: string | null
           price?: number
           seller_id?: string
@@ -200,7 +203,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      product_condition: "new" | "like-new" | "good" | "fair" | "poor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -315,6 +318,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      product_condition: ["new", "like-new", "good", "fair", "poor"],
+    },
   },
 } as const

@@ -21,13 +21,18 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     }
   };
 
+  // Get the first image URL for the main display
+  const mainImage = product.image_url || (product.image_urls && product.image_urls.length > 0 
+    ? product.image_urls[0] 
+    : null);
+
   return (
     <Link to={`/product/${product.id}`}>
       <Card className="overflow-hidden transition-all duration-300 hover:shadow-md h-full flex flex-col">
         <div className="relative h-48 bg-gray-100">
-          {product.image_url ? (
+          {mainImage ? (
             <img 
-              src={product.image_url} 
+              src={mainImage} 
               alt={product.title}
               className="w-full h-full object-cover"
             />

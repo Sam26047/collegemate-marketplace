@@ -17,18 +17,22 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { categories } from '@/data/mockData';
-import { UploadCloud } from 'lucide-react';
+import { UploadCloud, X } from 'lucide-react';
 import { useJwtAuth } from '@/context/JwtAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
+import { useProducts } from '@/hooks/useProducts';
 
 const SellItem = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useJwtAuth();
+  const { useCreateProduct } = useProducts();
+  const { mutate: createProduct, isPending } = useCreateProduct();
+  
   const [isUploading, setIsUploading] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   
   // Form state
   const [title, setTitle] = useState('');
@@ -51,44 +55,57 @@ const SellItem = () => {
   }, [user, navigate, toast]);
   
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const newFiles = Array.from(files);
+      setImageFiles(prev => [...prev, ...newFiles]);
       
-      // Preview image
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      // Generate previews for new files
+      newFiles.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImagePreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
     }
   };
   
-  const uploadImage = async (): Promise<string | null> => {
-    if (!imageFile) return null;
+  const removeImage = (index: number) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+  
+  const uploadImages = async (): Promise<string[]> => {
+    if (imageFiles.length === 0) return [];
     
     try {
       setIsUploading(true);
+      const imageUrls: string[] = [];
       
-      const fileExt = imageFile.name.split('.').pop();
-      const fileName = `${uuidv4()}.${fileExt}`;
-      const filePath = `${user!.id}/${fileName}`;
+      for (const file of imageFiles) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${uuidv4()}.${fileExt}`;
+        const filePath = `${user!.id}/${fileName}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('products')
+          .upload(filePath, file);
+        
+        if (uploadError) throw uploadError;
+        
+        // Get public URL
+        const { data } = supabase.storage
+          .from('products')
+          .getPublicUrl(filePath);
+        
+        imageUrls.push(data.publicUrl);
+      }
       
-      const { error: uploadError } = await supabase.storage
-        .from('products')
-        .upload(filePath, imageFile);
-      
-      if (uploadError) throw uploadError;
-      
-      // Get public URL
-      const { data } = supabase.storage
-        .from('products')
-        .getPublicUrl(filePath);
-      
-      return data.publicUrl;
+      return imageUrls;
     } catch (error: any) {
-      console.error('Error uploading image:', error.message);
-      return null;
+      console.error('Error uploading images:', error.message);
+      return [];
     } finally {
       setIsUploading(false);
     }
@@ -110,37 +127,24 @@ const SellItem = () => {
     try {
       setIsUploading(true);
       
-      // Upload image if any
-      let imageUrl = null;
-      if (imageFile) {
-        imageUrl = await uploadImage();
-      }
+      // Upload images
+      const imageUrls = await uploadImages();
       
-      // Insert product into database
-      const { data, error } = await supabase
-        .from('products')
-        .insert({
-          title,
-          description,
-          price: parseFloat(price),
-          condition,
-          category,
-          location,
-          seller_id: user.id,
-          image_url: imageUrl,
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
-      toast({
-        title: 'Success!',
-        description: 'Your item has been listed successfully',
+      // Use our new API to create the product
+      createProduct({
+        title,
+        description,
+        price: parseFloat(price),
+        condition: condition as 'new' | 'like-new' | 'good' | 'fair' | 'poor',
+        category,
+        location,
+        image_url: imageUrls[0] || null, // First image as primary
+        image_urls: imageUrls
       });
       
-      // Navigate to the new product page
-      navigate(`/product/${data.id}`);
+      // Navigate to home page after success
+      navigate('/');
+      
     } catch (error: any) {
       toast({
         title: 'Error creating listing',
@@ -262,51 +266,71 @@ const SellItem = () => {
                 
                 <Separator />
                 
-                {/* Item Image */}
+                {/* Item Images */}
                 <div>
-                  <h2 className="text-xl font-semibold mb-4">Item Image</h2>
+                  <h2 className="text-xl font-semibold mb-4">Item Images</h2>
                   
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                    {imagePreview ? (
-                      <div className="relative">
-                        <img 
-                          src={imagePreview} 
-                          alt="Item preview" 
-                          className="mx-auto max-h-64 rounded-lg"
-                        />
-                        <button
-                          type="button"
-                          className="mt-4 text-red-500 hover:text-red-700"
-                          onClick={() => {
-                            setImagePreview(null);
-                            setImageFile(null);
-                          }}
-                        >
-                          Remove Image
-                        </button>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                    {imagePreviews.length > 0 ? (
+                      <div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {imagePreviews.map((preview, index) => (
+                            <div key={index} className="relative">
+                              <img 
+                                src={preview} 
+                                alt={`Item preview ${index + 1}`} 
+                                className="h-24 w-full object-cover rounded-lg"
+                              />
+                              <button
+                                type="button"
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                                onClick={() => removeImage(index)}
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                          
+                          {/* Add more images button */}
+                          <label className="h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-50">
+                            <span className="text-gray-500">+ Add</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleImageChange}
+                              disabled={isUploading || isPending}
+                              multiple
+                            />
+                          </label>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-4">
+                          First image will be used as the cover image for your listing.
+                        </p>
                       </div>
                     ) : (
-                      <div>
+                      <div className="text-center">
                         <UploadCloud className="h-12 w-12 mx-auto text-gray-400 mb-2" />
                         <p className="text-gray-600 mb-4">Drag and drop or click to upload</p>
                         
                         <label className="relative">
-                          <Button type="button" variant="outline" disabled={isUploading}>
-                            {isUploading ? 'Uploading...' : 'Select Image'}
+                          <Button type="button" variant="outline" disabled={isUploading || isPending}>
+                            {isUploading ? 'Uploading...' : 'Select Images'}
                           </Button>
                           <input
                             type="file"
                             accept="image/*"
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                             onChange={handleImageChange}
-                            disabled={isUploading}
+                            disabled={isUploading || isPending}
+                            multiple
                           />
                         </label>
                       </div>
                     )}
                   </div>
                   <p className="text-sm text-gray-500 mt-2">
-                    Clear images help your item sell faster. Include multiple angles if possible.
+                    Clear images help your item sell faster. Add multiple angles for best results.
                   </p>
                 </div>
                 
@@ -317,8 +341,8 @@ const SellItem = () => {
                   <Button type="button" variant="outline" onClick={() => navigate('/')}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isUploading}>
-                    {isUploading ? 'Processing...' : 'List Item'}
+                  <Button type="submit" disabled={isUploading || isPending}>
+                    {isUploading || isPending ? 'Processing...' : 'List Item'}
                   </Button>
                 </div>
               </div>
