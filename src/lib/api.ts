@@ -111,6 +111,7 @@ export const api = {
       const { data: sessionData } = await supabase.auth.getSession();
       
       if (!sessionData.session) {
+        console.error('Session check failed - user not logged in');
         throw new Error('User must be logged in to create a product');
       }
       
@@ -119,23 +120,28 @@ export const api = {
       console.log('Creating product with user ID:', userId);
       console.log('Product data:', productData);
       
-      const { data, error } = await supabase
-        .from('products')
-        .insert({
-          ...productData,
-          seller_id: userId,
-          status: 'active'
-        })
-        .select()
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .insert({
+            ...productData,
+            seller_id: userId,
+            status: 'active'
+          })
+          .select()
+          .single();
 
-      if (error) {
-        console.error('Error creating product:', error);
-        throw new Error(error.message);
+        if (error) {
+          console.error('Error creating product:', error);
+          throw new Error(error.message);
+        }
+        
+        console.log('Product created successfully:', data);
+        return data;
+      } catch (error: any) {
+        console.error('Exception during product creation:', error);
+        throw error;
       }
-      
-      console.log('Product created successfully:', data);
-      return data;
     },
 
     // Get a product by ID

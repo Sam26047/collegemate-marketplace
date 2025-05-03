@@ -35,8 +35,10 @@ export const JwtAuthProvider: React.FC<{ children: React.ReactNode }> = ({ child
       
       if (storedToken) {
         try {
+          console.log("Found stored token, verifying...");
           // Verify the token and get user data
           const userData = await api.getCurrentUser(storedToken);
+          console.log("Token verification successful", userData);
           setToken(storedToken);
           setUser(userData.user);
         } catch (error) {
@@ -48,6 +50,7 @@ export const JwtAuthProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       } else {
         // No token found
+        console.log("No token found in localStorage");
         setToken(null);
         setUser(null);
       }

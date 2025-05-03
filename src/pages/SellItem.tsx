@@ -25,7 +25,7 @@ import { useProducts } from '@/hooks/useProducts';
 const SellItem = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useJwtAuth();
+  const { user, token } = useJwtAuth();
   const { useCreateProduct } = useProducts();
   const { mutate: createProduct, isPending } = useCreateProduct();
   
@@ -42,16 +42,20 @@ const SellItem = () => {
   const [description, setDescription] = useState('');
   
   useEffect(() => {
-    // Redirect to login if not authenticated
-    if (!user) {
+    // Check if the user is authenticated
+    if (!user || !token) {
+      console.log("Auth check failed - redirecting to login", { user, token });
       toast({
         title: 'Authentication required',
         description: 'Please sign in to create a listing',
         variant: 'destructive',
       });
       navigate('/auth');
+      return;
+    } else {
+      console.log("User authenticated", { userId: user.id });
     }
-  }, [user, navigate, toast]);
+  }, [user, token, navigate, toast]);
   
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -113,7 +117,9 @@ const SellItem = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!user) {
+    // Double check authentication
+    if (!user || !token) {
+      console.log("Submit check failed - redirecting to login", { user, token });
       toast({
         title: 'Authentication required',
         description: 'Please sign in to create a listing',
