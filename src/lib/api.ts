@@ -183,7 +183,8 @@ export const api = {
       }
 
       if (condition) {
-        query = query.eq('condition', condition);
+        // Fix: Type cast condition to the specific product_condition type
+        query = query.eq('condition', condition as 'new' | 'like-new' | 'good' | 'fair' | 'poor');
       }
 
       if (min_price !== undefined) {

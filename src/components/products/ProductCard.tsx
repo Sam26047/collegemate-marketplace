@@ -26,6 +26,23 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     ? product.image_urls[0] 
     : null);
 
+  // Format the date safely
+  const formatDate = () => {
+    try {
+      // Check if created_at is a valid date string
+      if (!product.created_at) return 'Date unknown';
+      
+      const date = new Date(product.created_at);
+      // Check if date is valid before formatting
+      if (isNaN(date.getTime())) return 'Invalid date';
+      
+      return formatDistanceToNow(date, { addSuffix: true });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Date unknown';
+    }
+  };
+
   return (
     <Link to={`/product/${product.id}`}>
       <Card className="overflow-hidden transition-all duration-300 hover:shadow-md h-full flex flex-col">
@@ -58,7 +75,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         
         <CardFooter className="px-4 py-3 bg-gray-50 text-sm text-gray-500 flex justify-between">
           <span>{product.location}</span>
-          <span>{formatDistanceToNow(new Date(product.created_at), { addSuffix: true })}</span>
+          <span>{formatDate()}</span>
         </CardFooter>
       </Card>
     </Link>
