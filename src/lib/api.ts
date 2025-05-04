@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 const API_URL = "https://apkkklwenihriulmjtzy.supabase.co/functions/v1/auth";
@@ -51,6 +52,41 @@ export interface ProductFilter {
 }
 
 export const api = {
+  // Set up Supabase session with JWT token
+  setupSupabaseSession: async (token: string) => {
+    try {
+      console.log('Setting up Supabase session with token');
+      // Set the JWT token in the Supabase client
+      const { data, error } = await supabase.auth.setSession({
+        access_token: token,
+        refresh_token: token, // Using the same token as both for simplicity
+      });
+      
+      if (error) {
+        console.error('Error setting Supabase session:', error);
+        throw error;
+      }
+      
+      console.log('Supabase session established successfully', data);
+      return data;
+    } catch (error) {
+      console.error('Failed to set up Supabase session:', error);
+      throw error;
+    }
+  },
+
+  // Clear Supabase session (for logout)
+  clearSupabaseSession: async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out from Supabase:', error);
+      }
+    } catch (error) {
+      console.error('Failed to clear Supabase session:', error);
+    }
+  },
+
   // Authentication API methods
   register: async (params: RegisterParams): Promise<AuthResponse> => {
     const response = await fetch(`${API_URL}/register`, {
@@ -112,10 +148,35 @@ export const api = {
       
       if (!sessionData.session) {
         console.error('Session check failed - user not logged in');
-        throw new Error('User must be logged in to create a product');
+        // Try to get JWT token from localStorage as a fallback
+        const jwtToken = localStorage.getItem('jwtToken');
+        
+        if (jwtToken) {
+          console.log('Found JWT token in localStorage, trying to establish session');
+          // Attempt to establish Supabase session with JWT
+          await api.setupSupabaseSession(jwtToken);
+          
+          // Try to get session again
+          const { data: refreshedSession } = await supabase.auth.getSession();
+          if (!refreshedSession.session) {
+            console.error('Still no valid session after token refresh attempt');
+            throw new Error('User must be logged in to create a product');
+          }
+          
+          console.log('Session established successfully', refreshedSession);
+        } else {
+          throw new Error('User must be logged in to create a product');
+        }
       }
       
-      const userId = sessionData.session.user.id;
+      // Get the refreshed session
+      const { data: currentSession } = await supabase.auth.getSession();
+      const userId = currentSession.session?.user.id;
+      
+      if (!userId) {
+        console.error('User ID not found in session');
+        throw new Error('User authentication issue - please log in again');
+      }
       
       console.log('Creating product with user ID:', userId);
       console.log('Product data:', productData);

@@ -21,6 +21,7 @@ import { useJwtAuth } from '@/context/JwtAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 import { useProducts } from '@/hooks/useProducts';
+import { api } from '@/lib/api';
 
 const SellItem = () => {
   const navigate = useNavigate();
@@ -42,19 +43,40 @@ const SellItem = () => {
   const [description, setDescription] = useState('');
   
   useEffect(() => {
-    // Check if the user is authenticated
-    if (!user || !token) {
-      console.log("Auth check failed - redirecting to login", { user, token });
-      toast({
-        title: 'Authentication required',
-        description: 'Please sign in to create a listing',
-        variant: 'destructive',
-      });
-      navigate('/auth');
-      return;
-    } else {
-      console.log("User authenticated", { userId: user.id });
-    }
+    // Initialize Supabase session with JWT token if available
+    const initSession = async () => {
+      try {
+        // Check if the user is authenticated
+        if (!user || !token) {
+          console.log("Auth check failed - redirecting to login", { user, token });
+          toast({
+            title: 'Authentication required',
+            description: 'Please sign in to create a listing',
+            variant: 'destructive',
+          });
+          navigate('/auth');
+          return;
+        } else {
+          console.log("User authenticated, setting up session", { userId: user.id });
+          
+          // Setup Supabase session with token
+          await api.setupSupabaseSession(token);
+          
+          const { data } = await supabase.auth.getSession();
+          console.log("Current Supabase session:", data.session ? "Active" : "None");
+        }
+      } catch (error) {
+        console.error("Error initializing session:", error);
+        toast({
+          title: 'Authentication Error',
+          description: 'Please try logging in again',
+          variant: 'destructive',
+        });
+        navigate('/auth');
+      }
+    };
+    
+    initSession();
   }, [user, token, navigate, toast]);
   
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,6 +113,8 @@ const SellItem = () => {
         const fileName = `${uuidv4()}.${fileExt}`;
         const filePath = `${user!.id}/${fileName}`;
         
+        console.log('Uploading image:', filePath);
+        
         const { error: uploadError } = await supabase.storage
           .from('products')
           .upload(filePath, file);
@@ -105,6 +129,7 @@ const SellItem = () => {
         imageUrls.push(data.publicUrl);
       }
       
+      console.log('Images uploaded successfully:', imageUrls);
       return imageUrls;
     } catch (error: any) {
       console.error('Error uploading images:', error.message);
@@ -131,6 +156,15 @@ const SellItem = () => {
     
     try {
       setIsUploading(true);
+      
+      // Get current Supabase session before upload
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log('Current session before upload:', sessionData);
+      
+      if (!sessionData.session) {
+        console.log('No active Supabase session, refreshing session with token');
+        await api.setupSupabaseSession(token);
+      }
       
       // Upload images
       const imageUrls = await uploadImages();

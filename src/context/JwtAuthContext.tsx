@@ -36,11 +36,16 @@ export const JwtAuthProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (storedToken) {
         try {
           console.log("Found stored token, verifying...");
+          // Set token first to ensure it's available for API calls
+          setToken(storedToken);
+          
           // Verify the token and get user data
           const userData = await api.getCurrentUser(storedToken);
           console.log("Token verification successful", userData);
-          setToken(storedToken);
           setUser(userData.user);
+          
+          // Configure Supabase client with token after verification
+          await api.setupSupabaseSession(storedToken);
         } catch (error) {
           // If token verification fails, clear storage
           console.error('Token verification failed:', error);
@@ -71,6 +76,9 @@ export const JwtAuthProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setToken(response.token);
       setUser(response.user);
       
+      // Set up Supabase session with the token
+      await api.setupSupabaseSession(response.token);
+      
       toast({
         title: "Success",
         description: "Account created successfully",
@@ -99,6 +107,9 @@ export const JwtAuthProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setToken(response.token);
       setUser(response.user);
       
+      // Set up Supabase session with the token
+      await api.setupSupabaseSession(response.token);
+      
       toast({
         title: "Success",
         description: "Logged in successfully",
@@ -121,6 +132,9 @@ export const JwtAuthProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.removeItem('jwtToken');
     setToken(null);
     setUser(null);
+    
+    // Clear Supabase session
+    api.clearSupabaseSession();
     
     toast({
       title: "Logged out",
