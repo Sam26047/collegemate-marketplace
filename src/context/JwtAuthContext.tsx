@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
 interface User {
@@ -17,6 +17,8 @@ interface JwtAuthContextType {
   register: (name: string, email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  redirectPath: string;
+  setRedirectPath: (path: string) => void;
 }
 
 const JwtAuthContext = createContext<JwtAuthContextType | undefined>(undefined);
@@ -25,8 +27,10 @@ export const JwtAuthProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [redirectPath, setRedirectPath] = useState<string>('/');
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const initAuth = async () => {
@@ -84,7 +88,10 @@ export const JwtAuthProvider: React.FC<{ children: React.ReactNode }> = ({ child
         description: "Account created successfully",
       });
       
-      navigate('/');
+      // Navigate to the stored redirect path or home
+      navigate(redirectPath || '/');
+      // Reset redirect path after successful navigation
+      setRedirectPath('/');
     } catch (error: any) {
       toast({
         title: "Registration failed",
@@ -115,7 +122,10 @@ export const JwtAuthProvider: React.FC<{ children: React.ReactNode }> = ({ child
         description: "Logged in successfully",
       });
       
-      navigate('/');
+      // Navigate to the stored redirect path or home
+      navigate(redirectPath || '/');
+      // Reset redirect path after successful navigation
+      setRedirectPath('/');
     } catch (error: any) {
       toast({
         title: "Login failed",
@@ -151,6 +161,8 @@ export const JwtAuthProvider: React.FC<{ children: React.ReactNode }> = ({ child
     register,
     login,
     logout,
+    redirectPath,
+    setRedirectPath
   };
 
   return <JwtAuthContext.Provider value={value}>{children}</JwtAuthContext.Provider>;

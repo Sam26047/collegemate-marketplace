@@ -17,7 +17,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
-  const { user, logout } = useJwtAuth();
+  const { user, logout, setRedirectPath } = useJwtAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -25,6 +25,15 @@ const Navbar = () => {
       logout();
     }
     navigate('/');
+  };
+
+  const handleSellClick = () => {
+    if (!user) {
+      setRedirectPath('/sell');
+      navigate('/auth?redirect=/sell');
+    } else {
+      navigate('/sell');
+    }
   };
 
   const getInitials = (name: string) => {
@@ -59,12 +68,10 @@ const Navbar = () => {
           <nav className="hidden md:flex items-center space-x-2">
             {isAuthenticated ? (
               <>
-                <Link to="/sell">
-                  <Button variant="ghost" size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Sell
-                  </Button>
-                </Link>
+                <Button variant="ghost" size="sm" onClick={handleSellClick}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Sell
+                </Button>
                 <Link to="/messages">
                   <Button variant="ghost" size="sm">
                     <MessageSquare className="h-4 w-4 mr-2" />
@@ -95,12 +102,10 @@ const Navbar = () => {
                 </DropdownMenu>
               </>
             ) : (
-              <Link to="/auth">
-                <Button>
-                  <LogIn className="h-4 w-4 mr-2" />
-                  Sign In
-                </Button>
-              </Link>
+              <Button onClick={() => navigate('/auth')}>
+                <LogIn className="h-4 w-4 mr-2" />
+                Sign In
+              </Button>
             )}
           </nav>
 
@@ -143,14 +148,16 @@ const Navbar = () => {
                     <User className="h-4 w-4 mr-2" />
                     Profile
                   </Link>
-                  <Link 
-                    to="/sell" 
-                    className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
-                    onClick={() => setIsMenuOpen(false)}
+                  <button 
+                    className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100 text-left"
+                    onClick={() => {
+                      handleSellClick();
+                      setIsMenuOpen(false);
+                    }}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Sell
-                  </Link>
+                  </button>
                   <Link 
                     to="/messages" 
                     className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
@@ -171,14 +178,16 @@ const Navbar = () => {
                   </button>
                 </>
               ) : (
-                <Link 
-                  to="/auth" 
+                <button
                   className="flex items-center px-2 py-1 rounded-md hover:bg-gray-100"
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={() => {
+                    navigate('/auth');
+                    setIsMenuOpen(false);
+                  }}
                 >
                   <LogIn className="h-4 w-4 mr-2" />
                   Sign In
-                </Link>
+                </button>
               )}
             </nav>
           </div>

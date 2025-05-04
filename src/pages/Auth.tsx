@@ -1,17 +1,28 @@
 
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import MainLayout from '@/components/layout/MainLayout';
 import JwtAuthForm from '@/components/auth/JwtAuthForm';
 import { useJwtAuth } from '@/context/JwtAuthContext';
-import { useEffect } from 'react';
 
 const Auth = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
-  const { user } = useJwtAuth();
+  const { user, setRedirectPath } = useJwtAuth();
+
+  // Handle redirects from URL parameters
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const redirect = queryParams.get('redirect');
+    
+    if (redirect) {
+      console.log("Setting redirect path:", redirect);
+      setRedirectPath(redirect);
+    }
+  }, [location.search, setRedirectPath]);
 
   // Check if user is already logged in
   useEffect(() => {

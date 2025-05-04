@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user } = useJwtAuth();
+  const { user, setRedirectPath } = useJwtAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
   const [recentProducts, setRecentProducts] = useState<any[]>([]);
@@ -59,6 +59,17 @@ const Index = () => {
     }
   };
 
+  const handleSellClick = () => {
+    if (!user) {
+      // Set redirect path and navigate to auth page
+      setRedirectPath('/sell');
+      navigate('/auth?redirect=/sell');
+    } else {
+      // User is logged in, go directly to sell page
+      navigate('/sell');
+    }
+  };
+
   return (
     <MainLayout>
       {/* Hero Section */}
@@ -83,12 +94,14 @@ const Index = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Link to="/sell">
-                <Button className="h-12 px-6 bg-white text-marketplace-primary hover:bg-gray-100 shadow-lg">
-                  <Plus className="h-5 w-5 mr-2" />
-                  Sell an Item
-                </Button>
-              </Link>
+              <Button 
+                type="button"
+                className="h-12 px-6 bg-white text-marketplace-primary hover:bg-gray-100 shadow-lg"
+                onClick={handleSellClick}
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Sell an Item
+              </Button>
             </form>
           </div>
         </div>
@@ -177,19 +190,24 @@ const Index = () => {
             List your items quickly and connect with buyers from your campus
           </p>
           {user ? (
-            <Link to="/sell">
-              <Button className="bg-marketplace-primary hover:bg-indigo-600">
-                <Plus className="h-5 w-5 mr-2" />
-                Sell an Item
-              </Button>
-            </Link>
+            <Button 
+              className="bg-marketplace-primary hover:bg-indigo-600"
+              onClick={() => navigate('/sell')}
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Sell an Item
+            </Button>
           ) : (
             <div className="space-y-2">
-              <Link to="/auth">
-                <Button className="bg-marketplace-primary hover:bg-indigo-600">
-                  Sign In to Sell
-                </Button>
-              </Link>
+              <Button 
+                className="bg-marketplace-primary hover:bg-indigo-600"
+                onClick={() => {
+                  setRedirectPath('/sell');
+                  navigate('/auth?redirect=/sell');
+                }}
+              >
+                Sign In to Sell
+              </Button>
               <p className="text-sm text-gray-500 mt-2">
                 You need to be signed in to list items for sale
               </p>

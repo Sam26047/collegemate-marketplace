@@ -26,7 +26,7 @@ import { api } from '@/lib/api';
 const SellItem = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, token } = useJwtAuth();
+  const { user, token, setRedirectPath } = useJwtAuth();
   const { useCreateProduct } = useProducts();
   const { mutate: createProduct, isPending } = useCreateProduct();
   
@@ -42,42 +42,49 @@ const SellItem = () => {
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   
+  // Check for authentication immediately
   useEffect(() => {
-    // Initialize Supabase session with JWT token if available
-    const initSession = async () => {
-      try {
-        // Check if the user is authenticated
-        if (!user || !token) {
-          console.log("Auth check failed - redirecting to login", { user, token });
-          toast({
-            title: 'Authentication required',
-            description: 'Please sign in to create a listing',
-            variant: 'destructive',
-          });
-          navigate('/auth');
-          return;
-        } else {
-          console.log("User authenticated, setting up session", { userId: user.id });
-          
+    const checkAuth = async () => {
+      // If the user is not authenticated, redirect to auth page
+      if (!user || !token) {
+        console.log("User not authenticated, redirecting to login");
+        toast({
+          title: 'Authentication required',
+          description: 'Please sign in to create a listing',
+        });
+        // Save current path for redirect after login
+        setRedirectPath('/sell');
+        navigate('/auth?redirect=/sell');
+        return;
+      } else {
+        console.log("User authenticated, setting up session", { userId: user.id });
+        
+        try {
           // Setup Supabase session with token
           await api.setupSupabaseSession(token);
           
+          // Verify the session is active
           const { data } = await supabase.auth.getSession();
           console.log("Current Supabase session:", data.session ? "Active" : "None");
+          
+          if (!data.session) {
+            console.log("No active session, refreshing with token");
+            await api.setupSupabaseSession(token);
+          }
+        } catch (error) {
+          console.error("Error setting up session:", error);
+          toast({
+            title: 'Authentication Error',
+            description: 'Please try logging in again',
+            variant: 'destructive',
+          });
+          navigate('/auth?redirect=/sell');
         }
-      } catch (error) {
-        console.error("Error initializing session:", error);
-        toast({
-          title: 'Authentication Error',
-          description: 'Please try logging in again',
-          variant: 'destructive',
-        });
-        navigate('/auth');
       }
     };
     
-    initSession();
-  }, [user, token, navigate, toast]);
+    checkAuth();
+  }, [user, token, navigate, toast, setRedirectPath]);
   
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -144,27 +151,21 @@ const SellItem = () => {
     
     // Double check authentication
     if (!user || !token) {
-      console.log("Submit check failed - redirecting to login", { user, token });
+      console.log("Submit check failed - redirecting to login");
       toast({
         title: 'Authentication required',
         description: 'Please sign in to create a listing',
         variant: 'destructive',
       });
-      navigate('/auth');
+      navigate('/auth?redirect=/sell');
       return;
     }
     
     try {
       setIsUploading(true);
       
-      // Get current Supabase session before upload
-      const { data: sessionData } = await supabase.auth.getSession();
-      console.log('Current session before upload:', sessionData);
-      
-      if (!sessionData.session) {
-        console.log('No active Supabase session, refreshing session with token');
-        await api.setupSupabaseSession(token);
-      }
+      // Ensure token is set in Supabase client
+      await api.setupSupabaseSession(token);
       
       // Upload images
       const imageUrls = await uploadImages();
@@ -202,6 +203,11 @@ const SellItem = () => {
       setIsUploading(false);
     }
   };
+  
+  // If not authenticated yet, don't render the form
+  if (!user || !token) {
+    return null; // The useEffect will handle redirection
+  }
   
   return (
     <MainLayout>
